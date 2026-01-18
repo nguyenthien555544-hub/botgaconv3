@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOT GA CON V3</title>
+
+<style>
+body{
+  background:#000;
+  color:#00ff66;
+  font-family:monospace;
+}
+.app{
+  max-width:420px;
+  margin:auto;
+  padding:15px;
+  border:2px solid #00ff66;
+  text-align:center;
+}
+input,select,button{
+  width:100%;
+  padding:10px;
+  margin:6px 0;
+  background:#000;
+  border:1px solid #00ff66;
+  color:#00ff66;
+}
+button.sub{border-color:#00aaff;color:#00aaff}
+button.danger{border-color:#ff4444;color:#ff4444}
+.bet{
+  margin:12px 0;
+  padding:10px;
+  border:2px dashed #00ff66;
+  font-size:18px;
+}
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin:10px 0;
+}
+.gate{
+  padding:14px;
+  border:1px solid #00ff66;
+  cursor:pointer;
+}
+.gate.sel{background:#003300}
+canvas{
+  border:1px solid #00ff66;
+  margin-top:10px;
+}
+pre{
+  text-align:left;
+  font-size:13px;
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+  <div id="loginBox">
+    <h2>🤖 BOT GA CON V3</h2>
+    <input id="user" placeholder="Tài khoản">
+    <input id="pass" type="password" placeholder="Mật khẩu">
+    <button onclick="login()">Đăng nhập</button>
+    <button class="sub" onclick="showRegister()">+ Tạo tài khoản</button>
+  </div>
+
+  <div id="registerBox" style="display:none">
+    <h2>🆕 Tạo tài khoản</h2>
+    <input id="regUser" placeholder="Tài khoản">
+    <input id="regPass" type="password" placeholder="Mật khẩu">
+    <button onclick="register()">Tạo</button>
+    <button class="sub" onclick="showLogin()">← Quay lại</button>
+  </div>
+
+  <div id="botBox" style="display:none">
+    <h2 id="botPick">BOT CHỌN: ...</h2>
+    <h3 id="botPick2"></h3>
+
+    <h1 id="betSuggest" class="bet">⏳ Chờ dữ liệu</h1>
+
+    <select id="killerType">
+      <option value="1">🐔 Gà (giết 1 phòng)</option>
+      <option value="2">🐍 Cặp rắn (giết 2 phòng)</option>
+      <option value="4">⚡ Thần sấm (giết 4 phòng)</option>
+    </select>
+
+    <div id="gates" class="grid"></div>
+
+    <button onclick="saveRound()">Lưu vòng</button>
+    <button class="danger" onclick="resetHistory()">Reset</button>
+    <button class="sub" onclick="logout()">Đăng xuất</button>
+
+    <canvas id="chart" width="360" height="180"></canvas>
+    <pre id="danger"></pre>
+  </div>
+
+</div>
+
+<script>
+/* ===== DOM ===== */
+const loginBox = document.getElementById("loginBox");
+const registerBox = document.getElementById("registerBox");
+const botBox = document.getElementById("botBox");
+const gates = document.getElementById("gates");
+const botPick = document.getElementById("botPick");
+const botPick2 = document.getElementById("botPick2");
+const betSuggest = document.getElementById("betSuggest");
+const danger = document.getElementById("danger");
+const chart = document.getElementById("chart");
+
+/* ===== ACCOUNT ===== */
+const getAcc=()=>JSON.parse(localStorage.getItem("acc")||"{}");
+const saveAcc=a=>localStorage.setItem("acc",JSON.stringify(a));
+
+function login(){
+  let a=getAcc();
+  if(a[user.value]===pass.value){
+    loginBox.style.display="none";
+    registerBox.style.display="none";
+    botBox.style.display="block";
+    drawButtons();
+    analyze();
+  }else alert("Sai tài khoản");
+}
+function register(){
+  let a=getAcc();
+  if(a[regUser.value]) return alert("Tài khoản tồn tại");
+  a[regUser.value]=regPass.value;
+  saveAcc(a);
+  alert("Tạo tài khoản thành công");
+  showLogin();
+}
+function logout(){
+  selected=[];
+  botBox.style.display="none";
+  loginBox.style.display="block";
+}
+function showRegister(){
+  loginBox.style.display="none";
+  registerBox.style.display="block";
+}
+function showLogin(){
+  registerBox.style.display="none";
+  loginBox.style.display="block";
+}
+
+/* ===== DATA ===== */
+const rooms=["ANTOÀN","MAY MẮN","TỬ THẦN","BÍ ẨN","MẠO HIỂM"];
+let selected=[];
+
+const getHistory=()=>JSON.parse(localStorage.getItem("his")||"[]");
+const saveHistory=h=>localStorage.setItem("his",JSON.stringify(h));
+
+/* ===== UI ===== */
+function drawButtons(){
+  gates.innerHTML="";
+  rooms.forEach(r=>{
+    let d=document.createElement("div");
+    d.className="gate";
+    d.innerText=r;
+    d.onclick=()=>{
+      d.classList.toggle("sel");
+      selected.includes(r)
+        ? selected=selected.filter(x=>x!==r)
+        : selected.push(r);
+    };
+    gates.appendChild(d);
+  });
+}
+
+/* ===== SAVE ROUND ===== */
+function saveRound(){
+  let type=+killerType.value;
+  if(selected.length!==type) return alert("Chọn đúng "+type+" phòng");
+  let h=getHistory();
+  h.push({dead:[...selected]});
+  if(h.length>50) h.shift();
+  saveHistory(h);
+  selected=[];
+  drawButtons();
+  analyze();
+}
+function resetHistory(){
+  localStorage.removeItem("his");
+  analyze();
+}
+
+/* ===== BOT V3 ===== */
+function analyze(){
+  let h=getHistory();
+  let score={};
+  rooms.forEach(r=>score[r]=1);
+
+  if(h.length<3){
+    botPick.innerText="BOT CHỌN: ⏳ Chờ đủ 3 ván";
+    botPick2.innerText="";
+    betSuggest.innerText="⏳ CHƯA NÊN CƯỢC";
+    drawChart(score,5);
+    return;
+  }
+
+  let recent=h.slice(-5);
+  rooms.forEach(r=>{
+    let dead=0;
+    recent.forEach(v=>{ if(v.dead.includes(r)) dead++; });
+    let win=recent.length-dead;
+    score[r]-=dead*1.2;
+    score[r]+=win*1.5;
+    if(score[r]<0.5) score[r]=0.5;
+  });
+
+  let sorted=[...rooms].sort((a,b)=>score[a]-score[b]);
+  let main=sorted[0], sub=sorted[1];
+  let max=Math.max(...Object.values(score));
+
+  let p1=((1-score[main]/max)*100).toFixed(0);
+  let p2=((1-score[sub]/max)*100).toFixed(0);
+
+  botPick.innerText=`BOT CHỌN: ${main} (${p1}%)`;
+  botPick2.innerText=`BOT PHỤ: ${sub} (${p2}%)`;
+
+  betSuggest.innerText=
+    p1>65?"🔴 CƯỢC MẠNH":
+    p1>45?"🟡 CƯỢC VỪA":
+           "🟢 CƯỢC NHẸ";
+
+  danger.innerText=rooms.map(r=>
+    `${r}: ${((score[r]/max)*100).toFixed(1)}% nguy hiểm`
+  ).join("\n");
+
+  drawChart(score,max);
+}
+
+/* ===== CHART ===== */
+function drawChart(score,max){
+  let ctx=chart.getContext("2d");
+  ctx.clearRect(0,0,chart.width,chart.height);
+  rooms.forEach((r,i)=>{
+    let h=(score[r]/max)*(chart.height-30);
+    ctx.fillStyle=i<2?"#ffaa00":"#00ff66";
+    ctx.fillRect(10+i*70,chart.height-h-20,50,h);
+    ctx.fillText(r[0],30+i*70,chart.height-5);
+  });
+}
+</script>
+</body>
+</html>
