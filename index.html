@@ -54,54 +54,61 @@ pre{
   text-align:left;
   font-size:13px;
 }
+.stats{
+  border:1px dashed #00ff66;
+  padding:8px;
+  margin:10px 0;
+  font-size:14px;
+}
 </style>
 </head>
 
 <body>
 <div class="app">
 
-  <div id="loginBox">
-    <h2>🤖 BOT GA CON V3</h2>
-    <input id="user" placeholder="Tài khoản">
-    <input id="pass" type="password" placeholder="Mật khẩu">
-    <button onclick="login()">Đăng nhập</button>
-    <button class="sub" onclick="showRegister()">+ Tạo tài khoản</button>
-  </div>
+<div id="loginBox">
+  <h2>🤖 BOT GA CON V3</h2>
+  <input id="user" placeholder="Tài khoản">
+  <input id="pass" type="password" placeholder="Mật khẩu">
+  <button onclick="login()">Đăng nhập</button>
+  <button class="sub" onclick="showRegister()">+ Tạo tài khoản</button>
+</div>
 
-  <div id="registerBox" style="display:none">
-    <h2>🆕 Tạo tài khoản</h2>
-    <input id="regUser" placeholder="Tài khoản">
-    <input id="regPass" type="password" placeholder="Mật khẩu">
-    <button onclick="register()">Tạo</button>
-    <button class="sub" onclick="showLogin()">← Quay lại</button>
-  </div>
+<div id="registerBox" style="display:none">
+  <h2>🆕 Tạo tài khoản</h2>
+  <input id="regUser" placeholder="Tài khoản">
+  <input id="regPass" type="password" placeholder="Mật khẩu">
+  <button onclick="register()">Tạo</button>
+  <button class="sub" onclick="showLogin()">← Quay lại</button>
+</div>
 
-  <div id="botBox" style="display:none">
-    <h2 id="botPick">BOT CHỌN: ...</h2>
-    <h3 id="botPick2"></h3>
+<div id="botBox" style="display:none">
+  <h2 id="botPick">BOT CHỌN: ...</h2>
+  <h3 id="botPick2"></h3>
 
-    <h1 id="betSuggest" class="bet">⏳ Chờ dữ liệu</h1>
+  <h1 id="betSuggest" class="bet">⏳ Chờ dữ liệu</h1>
 
-    <select id="killerType">
-      <option value="1">🐔 Gà (giết 1 phòng)</option>
-      <option value="2">🐍 Cặp rắn (giết 2 phòng)</option>
-      <option value="4">⚡ Thần sấm (giết 4 phòng)</option>
-    </select>
+  <div class="stats" id="stats"></div>
 
-    <div id="gates" class="grid"></div>
+  <select id="killerType">
+    <option value="1">🐔 Gà (giết 1 phòng)</option>
+    <option value="2">🐍 Cặp rắn (giết 2 phòng)</option>
+    <option value="4">⚡ Thần sấm (giết 4 phòng)</option>
+  </select>
 
-    <button onclick="saveRound()">Lưu vòng</button>
-    <button class="danger" onclick="resetHistory()">Reset</button>
-    <button class="sub" onclick="logout()">Đăng xuất</button>
+  <div id="gates" class="grid"></div>
 
-    <canvas id="chart" width="360" height="180"></canvas>
-    <pre id="danger"></pre>
-  </div>
+  <button onclick="saveRound()">Lưu vòng</button>
+  <button class="danger" onclick="resetHistory()">Reset</button>
+  <button class="sub" onclick="logout()">Đăng xuất</button>
+
+  <canvas id="chart" width="360" height="180"></canvas>
+  <pre id="danger"></pre>
+</div>
 
 </div>
 
 <script>
-/* ===== DOM ===== */
 const loginBox = document.getElementById("loginBox");
 const registerBox = document.getElementById("registerBox");
 const botBox = document.getElementById("botBox");
@@ -111,8 +118,8 @@ const botPick2 = document.getElementById("botPick2");
 const betSuggest = document.getElementById("betSuggest");
 const danger = document.getElementById("danger");
 const chart = document.getElementById("chart");
+const statsBox = document.getElementById("stats");
 
-/* ===== ACCOUNT ===== */
 const getAcc=()=>JSON.parse(localStorage.getItem("acc")||"{}");
 const saveAcc=a=>localStorage.setItem("acc",JSON.stringify(a));
 
@@ -148,14 +155,13 @@ function showLogin(){
   loginBox.style.display="block";
 }
 
-/* ===== DATA ===== */
 const rooms=["ANTOÀN","MAY MẮN","TỬ THẦN","BÍ ẨN","MẠO HIỂM"];
 let selected=[];
+let currentBotPick=null;
 
 const getHistory=()=>JSON.parse(localStorage.getItem("his")||"[]");
 const saveHistory=h=>localStorage.setItem("his",JSON.stringify(h));
 
-/* ===== UI ===== */
 function drawButtons(){
   gates.innerHTML="";
   rooms.forEach(r=>{
@@ -172,55 +178,66 @@ function drawButtons(){
   });
 }
 
-/* ===== SAVE ROUND ===== */
 function saveRound(){
   let type=+killerType.value;
   if(selected.length!==type) return alert("Chọn đúng "+type+" phòng");
   let h=getHistory();
-  h.push({dead:[...selected]});
+  h.push({ dead:[...selected], bot: currentBotPick });
   if(h.length>50) h.shift();
   saveHistory(h);
   selected=[];
   drawButtons();
   analyze();
 }
+
 function resetHistory(){
   localStorage.removeItem("his");
   analyze();
 }
 
-/* ===== BOT V3 ===== */
 function analyze(){
   let h=getHistory();
   let score={};
   rooms.forEach(r=>score[r]=1);
 
+  let win=0, lose=0;
+
+  h.slice(3).forEach(v=>{
+    if(!v.bot) return;
+    v.dead.includes(v.bot) ? lose++ : win++;
+  });
+
+  statsBox.innerHTML=
+    `📊 Tổng ván: ${win+lose}<br>
+     ✅ Win: ${win}<br>
+     ❌ Lose: ${lose}`;
+
   if(h.length<3){
     botPick.innerText="BOT CHỌN: ⏳ Chờ đủ 3 ván";
-    botPick2.innerText="";
     betSuggest.innerText="⏳ CHƯA NÊN CƯỢC";
     drawChart(score,5);
     return;
   }
 
-  let recent=h.slice(-5);
+  let recent=h.slice(-7);
   rooms.forEach(r=>{
     let dead=0;
     recent.forEach(v=>{ if(v.dead.includes(r)) dead++; });
-    let win=recent.length-dead;
+    let winR=recent.length-dead;
     score[r]-=dead*1.2;
-    score[r]+=win*1.5;
+    score[r]+=winR*1.5;
     if(score[r]<0.5) score[r]=0.5;
   });
 
   let sorted=[...rooms].sort((a,b)=>score[a]-score[b]);
-  let main=sorted[0], sub=sorted[1];
-  let max=Math.max(...Object.values(score));
+  currentBotPick=sorted[0];
+  let sub=sorted[1];
 
-  let p1=((1-score[main]/max)*100).toFixed(0);
+  let max=Math.max(...Object.values(score));
+  let p1=((1-score[currentBotPick]/max)*100).toFixed(0);
   let p2=((1-score[sub]/max)*100).toFixed(0);
 
-  botPick.innerText=`BOT CHỌN: ${main} (${p1}%)`;
+  botPick.innerText=`BOT CHỌN: ${currentBotPick} (${p1}%)`;
   botPick2.innerText=`BOT PHỤ: ${sub} (${p2}%)`;
 
   betSuggest.innerText=
@@ -235,7 +252,6 @@ function analyze(){
   drawChart(score,max);
 }
 
-/* ===== CHART ===== */
 function drawChart(score,max){
   let ctx=chart.getContext("2d");
   ctx.clearRect(0,0,chart.width,chart.height);
