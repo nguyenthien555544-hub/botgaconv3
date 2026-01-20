@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>BOT 5.0</title>
+<style>
+body{background:#111;color:#0f0;font-family:monospace}
+#log{height:300px;overflow:auto;border:1px solid #0f0;padding:5px}
+button{margin:5px}
+</style>
+</head>
+<body>
+
+<h2>🤖 BOT 5.0</h2>
+
+<input id="keyInput" placeholder="Nhập key..." />
+<button onclick="checkKey()">Kích hoạt</button>
+
+<div id="log"></div>
+
+<script>
+const SERVER = "https://admin-key-sever.onrender.com";
+const logBox = document.getElementById("log");
+
+function log(txt){
+  logBox.innerHTML += "<br>" + txt;
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+/* ======================
+   THUẬT TOÁN BOT
+====================== */
+
+function engineBasic(){
+  log("⚙️ Engine Basic chạy");
+}
+
+function engineMarkov(){
+  log("⚙️ Engine Markov chạy");
+}
+
+function engineAntiTrap(){
+  log("⚙️ Engine Anti-Trap chạy");
+}
+
+/* ======================
+   PHÂN QUYỀN KEY
+====================== */
+
+function applyKeyPermission(){
+  if(window.KEY_TYPE === "FREE"){
+    window.engineMarkov = ()=>{};
+    window.engineAntiTrap = ()=>{};
+    log("🔒 FREE KEY: Giới hạn thuật toán");
+  }else{
+    log("👑 VIP KEY: Mở full thuật toán");
+  }
+}
+
+/* ======================
+   CHECK KEY SERVER
+====================== */
+
+function checkKey(){
+  const key = document.getElementById("keyInput").value;
+  if(!key) return alert("Nhập key");
+
+  fetch(SERVER + "/check", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      key,
+      device: navigator.userAgent
+    })
+  })
+  .then(r=>r.json())
+  .then(res=>{
+    if(!res.ok){
+      log("❌ Key sai hoặc đã bị khóa");
+      return;
+    }
+
+    window.KEY_TYPE = res.type;
+    log("✅ Key hợp lệ | Loại: " + res.type);
+
+    applyKeyPermission();
+    startBot();
+  })
+  .catch(()=>log("❌ Không kết nối được server"));
+}
+
+/* ======================
+   CHẠY BOT
+====================== */
+
+function startBot(){
+  log("🚀 BOT BẮT ĐẦU CHẠY");
+  engineBasic();
+  engineMarkov();
+  engineAntiTrap();
+}
+</script>
+
+</body>
+</html>
