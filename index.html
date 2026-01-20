@@ -43,7 +43,6 @@ canvas{border:1px solid #00ff66;margin-top:10px}
 <div id="botMain" class="big"></div>
 <div id="botSub" class="big"></div>
 <div id="betSuggest" class="bet"></div>
-
 <div class="stats" id="stats"></div>
 
 <select id="killer">
@@ -73,66 +72,81 @@ canvas{border:1px solid #00ff66;margin-top:10px}
 </div>
 
 <script>
-/* ================== SERVER CONFIG ================== */
-const SERVER_URL = " https://admin-key-server.onrender.com";
+/* ================== SERVER CONFIG (ĐÃ FIX) ================== */
+const SERVER_URL = "https://admin-key-server.onrender.com";
 
 /* ================== DEVICE ID ================== */
 function getDeviceId(){
   let id = localStorage.getItem("device_id");
   if(!id){
-    id = "DEV-" + Math.random().toString(36).substr(2,9);
+    id = "DEV-" + Math.random().toString(36).substr(2,10);
     localStorage.setItem("device_id", id);
   }
   return id;
 }
 
-/* ================== CHECK KEY ONLINE ================== */
+/* ================== CHECK KEY ONLINE (ĐÃ FIX) ================== */
 async function checkKey(){
   const key = keyInput.value.trim();
   if(!key) return alert("Nhập key!");
 
   try{
     const res = await fetch(SERVER_URL + "/check", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({ key:key, device:getDeviceId() })
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        key: key,
+        device: getDeviceId()
+      })
     });
 
+    if(!res.ok) throw new Error("SERVER_ERROR");
+
     const data = await res.json();
-    if(!data.ok) return alert("❌ " + data.msg);
+    if(!data.ok){
+      alert("❌ " + (data.msg || "Key không hợp lệ"));
+      return;
+    }
 
-    login.style.display="none";
-    bot.style.display="block";
-    drawRooms(); analyze();
+    // LOGIN OK
+    login.style.display = "none";
+    bot.style.display = "block";
+    drawRooms();
+    analyze();
 
-  }catch(e){
-    alert("❌ Không kết nối được server");
+  }catch(err){
+    alert("❌ Không kết nối được server (Render sleep hoặc sai API)");
   }
 }
 
-function logout(){location.reload()}
+function logout(){ location.reload(); }
 
-/* ================== BOT CORE (GIỮ NGUYÊN) ================== */
+/* ================== BOT CORE ================== */
 const ROOMS=["ANTOÀN","MAY MẮN","TỬ THẦN","BÍ ẨN","MẠO HIỂM"];
 const MAX_MAIN=94.32;
 
 let data=JSON.parse(localStorage.getItem("gacon46"))||{
 rounds:[],win:0,lose:0,winStreak:0,loseStreak:0,last:0,log:[]
 };
+
 let selected=[],botPick="";
 let roomHistory=JSON.parse(localStorage.getItem("roomHistory")||"{}");
-ROOMS.forEach(r=>roomHistory[r]??={win:0,lose:0,loseStreak:0,lastPick:0});
+ROOMS.forEach(r=>roomHistory[r]??={win:0,lose:0,loseStreak:0});
 
 function drawRooms(){
 rooms.innerHTML="";selected=[];
 ROOMS.forEach(r=>{
 let d=document.createElement("div");
-d.className="gate";d.innerText=r;
+d.className="gate"; d.innerText=r;
 d.onclick=()=>{
 if(d.classList.contains("sel")){
-d.classList.remove("sel");selected=selected.filter(x=>x!==r);return;}
-if(selected.length>=killer.value)return;
-d.classList.add("sel");selected.push(r);
+d.classList.remove("sel");
+selected=selected.filter(x=>x!==r);
+return;
+}
+if(selected.length>=killer.value) return;
+d.classList.add("sel");
+selected.push(r);
 };
 rooms.appendChild(d);
 });
@@ -156,6 +170,7 @@ if(data.loseStreak>=4){
 betSuggest.innerText="⛔ BOT NGHỈ";
 return;
 }
+
 botPick=ROOMS[Math.floor(Math.random()*ROOMS.length)];
 let sub=botPhuPick(botPick);
 let rate=Math.min(MAX_MAIN,Math.round(data.win/(data.win+data.lose)*100||0));
@@ -174,8 +189,8 @@ drawChart();
 }
 
 function saveRound(){
-if(Date.now()-data.last<5000)return alert("Chống spam");
-if(selected.length!=killer.value)return;
+if(Date.now()-data.last<5000) return alert("Chống spam");
+if(selected.length!=killer.value) return;
 
 let result="WIN";
 if(data.rounds.length>=3){
@@ -190,16 +205,17 @@ data.win++;data.winStreak++;data.loseStreak=0;
 data.rounds.push([...selected]);
 data.last=Date.now();
 data.log.push(`${result} | Bot: ${botPick} | Giết: ${selected.join(", ")}`);
-if(data.log.length>6)data.log.shift();
+if(data.log.length>6) data.log.shift();
+
 localStorage.setItem("gacon46",JSON.stringify(data));
 logBox.innerHTML="<b>📜 NHẬT KÝ BOT</b><br>"+data.log.join("<br>");
-drawRooms();analyze();
+drawRooms(); analyze();
 }
 
 function drawChart(){
 let ctx=chart.getContext("2d");
 ctx.clearRect(0,0,360,180);
-let count={};ROOMS.forEach(r=>count[r]=0);
+let count={}; ROOMS.forEach(r=>count[r]=0);
 data.rounds.flat().forEach(r=>count[r]++);
 let max=Math.max(...Object.values(count),1);
 
