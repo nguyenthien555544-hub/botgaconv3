@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>BOT GÀ CON 4.6 FIX</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{background:#000;color:#00ff66;font-family:monospace}
+.app{max-width:420px;margin:auto;padding:15px;border:2px solid #00ff66}
+input,button,select{width:100%;padding:10px;margin:6px 0;background:#000;border:1px solid #00ff66;color:#00ff66}
+button.danger{border-color:#ff4444;color:#ff4444}
+button.sub{border-color:#00aaff;color:#00aaff}
+.box,.stats,.log{border:1px dashed #00ff66;padding:8px;margin:10px 0;font-size:13px}
+.bet{border:2px dashed #00ff66;padding:10px;font-size:18px;text-align:center}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.gate{border:1px solid #00ff66;padding:14px;text-align:center}
+.gate.sel{background:#003300}
+canvas{border:1px solid #00ff66;margin-top:10px}
+.big{text-align:center;font-size:20px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:9}
+.modalBox{border:2px solid #00ff66;padding:15px;width:280px;text-align:center}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+<!-- LOGIN -->
+<div id="login">
+<h2 class="big">🤖 BOT GÀ CON 4.6</h2>
+<input id="keyInput" placeholder="Nhập key">
+<button onclick="checkKey()">XÁC NHẬN</button>
+<div class="box">
+<b>UPDATE 4.6</b><br>
++ Chuỗi win / thua<br>
++ Biểu đồ % phòng<br>
++ Bot phụ né phòng nguy hiểm<br>
+</div>
+</div>
+
+<!-- BOT -->
+<div id="bot" style="display:none">
+<div id="botMain" class="big"></div>
+<div id="botSub" class="big"></div>
+<div id="betSuggest" class="bet"></div>
+
+<div class="stats" id="stats"></div>
+
+<select id="killer">
+<option value="1">🐔 Gà</option>
+<option value="2">🐍 Rắn</option>
+<option value="4">⚡ Thần sấm</option>
+</select>
+
+<div class="grid" id="rooms"></div>
+
+<button onclick="saveRound()">LƯU VÁN</button>
+<button class="danger" onclick="openReset()">RESET</button>
+<button class="sub" onclick="logout()">ĐĂNG XUẤT</button>
+
+<canvas id="chart" width="360" height="180"></canvas>
+<div class="log" id="logBox"><b>📜 NHẬT KÝ BOT</b></div>
+</div>
+</div>
+
+<!-- RESET -->
+<div class="modal" id="resetModal">
+<div class="modalBox">
+<p>Bạn chắc chắn muốn reset?</p>
+<button onclick="confirmReset()">OK</button>
+<button class="danger" onclick="closeReset()">KHÔNG</button>
+</div>
+</div>
+
+<script>
+/* ================== SERVER CONFIG ================== */
+const SERVER_URL = " https://admin-key-server.onrender.com";
+
+/* ================== DEVICE ID ================== */
+function getDeviceId(){
+  let id = localStorage.getItem("device_id");
+  if(!id){
+    id = "DEV-" + Math.random().toString(36).substr(2,9);
+    localStorage.setItem("device_id", id);
+  }
+  return id;
+}
+
+/* ================== CHECK KEY ONLINE ================== */
+async function checkKey(){
+  const key = keyInput.value.trim();
+  if(!key) return alert("Nhập key!");
+
+  try{
+    const res = await fetch(SERVER_URL + "/check", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({ key:key, device:getDeviceId() })
+    });
+
+    const data = await res.json();
+    if(!data.ok) return alert("❌ " + data.msg);
+
+    login.style.display="none";
+    bot.style.display="block";
+    drawRooms(); analyze();
+
+  }catch(e){
+    alert("❌ Không kết nối được server");
+  }
+}
+
+function logout(){location.reload()}
+
+/* ================== BOT CORE (GIỮ NGUYÊN) ================== */
+const ROOMS=["ANTOÀN","MAY MẮN","TỬ THẦN","BÍ ẨN","MẠO HIỂM"];
+const MAX_MAIN=94.32;
+
+let data=JSON.parse(localStorage.getItem("gacon46"))||{
+rounds:[],win:0,lose:0,winStreak:0,loseStreak:0,last:0,log:[]
+};
+let selected=[],botPick="";
+let roomHistory=JSON.parse(localStorage.getItem("roomHistory")||"{}");
+ROOMS.forEach(r=>roomHistory[r]??={win:0,lose:0,loseStreak:0,lastPick:0});
+
+function drawRooms(){
+rooms.innerHTML="";selected=[];
+ROOMS.forEach(r=>{
+let d=document.createElement("div");
+d.className="gate";d.innerText=r;
+d.onclick=()=>{
+if(d.classList.contains("sel")){
+d.classList.remove("sel");selected=selected.filter(x=>x!==r);return;}
+if(selected.length>=killer.value)return;
+d.classList.add("sel");selected.push(r);
+};
+rooms.appendChild(d);
+});
+}
+
+function botPhuPick(main){
+let c=ROOMS.filter(r=>r!==main);
+let pick=c[Math.floor(Math.random()*c.length)];
+let h=roomHistory[pick];
+let trust=Math.max(25,Math.min(84.32,60+(h.win-h.lose)*2-h.loseStreak*8));
+return {room:pick,trust:trust.toFixed(2)};
+}
+
+function analyze(){
+if(data.rounds.length<3){
+botMain.innerText="🤖 BOT ĐANG HỌC";
+betSuggest.innerText="3 VÁN ĐẦU KHÔNG TÍNH";
+return;
+}
+if(data.loseStreak>=4){
+betSuggest.innerText="⛔ BOT NGHỈ";
+return;
+}
+botPick=ROOMS[Math.floor(Math.random()*ROOMS.length)];
+let sub=botPhuPick(botPick);
+let rate=Math.min(MAX_MAIN,Math.round(data.win/(data.win+data.lose)*100||0));
+let bet=rate<40?"🟢 5%":rate<70?"🟡 10%":"🔴 30%";
+
+botMain.innerText=`BOT CHÍNH: ${botPick} (${rate}%)`;
+botSub.innerText=`BOT PHỤ NÉ: ${sub.room} (${sub.trust}%)`;
+betSuggest.innerText=bet;
+
+stats.innerHTML=`🎯 Ván: ${data.rounds.length}<br>
+Win: ${data.win} | Lose: ${data.lose}<br>
+Chuỗi win: ${data.winStreak}<br>
+Chuỗi thua: ${data.loseStreak}`;
+
+drawChart();
+}
+
+function saveRound(){
+if(Date.now()-data.last<5000)return alert("Chống spam");
+if(selected.length!=killer.value)return;
+
+let result="WIN";
+if(data.rounds.length>=3){
+if(selected.includes(botPick)){
+data.lose++;data.loseStreak++;data.winStreak=0;
+result="LOSE";
+}else{
+data.win++;data.winStreak++;data.loseStreak=0;
+}
+}
+
+data.rounds.push([...selected]);
+data.last=Date.now();
+data.log.push(`${result} | Bot: ${botPick} | Giết: ${selected.join(", ")}`);
+if(data.log.length>6)data.log.shift();
+localStorage.setItem("gacon46",JSON.stringify(data));
+logBox.innerHTML="<b>📜 NHẬT KÝ BOT</b><br>"+data.log.join("<br>");
+drawRooms();analyze();
+}
+
+function drawChart(){
+let ctx=chart.getContext("2d");
+ctx.clearRect(0,0,360,180);
+let count={};ROOMS.forEach(r=>count[r]=0);
+data.rounds.flat().forEach(r=>count[r]++);
+let max=Math.max(...Object.values(count),1);
+
+ROOMS.forEach((r,i)=>{
+let h=(count[r]/max)*120;
+let pct=Math.round(count[r]/data.rounds.length*100||0);
+ctx.fillStyle="#00ff66";
+ctx.fillRect(20+i*65,160-h,40,h);
+ctx.fillText(pct+"%",25+i*65,150-h);
+ctx.fillText(r[0],35+i*65,170);
+});
+}
+
+function openReset(){resetModal.style.display="flex"}
+function closeReset(){resetModal.style.display="none"}
+function confirmReset(){
+localStorage.clear();
+location.reload();
+}
+</script>
+</body>
+</html>
